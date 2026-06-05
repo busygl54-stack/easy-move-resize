@@ -1,5 +1,12 @@
 # ![icon](easy-move-resize/Images.xcassets/AppIcon.appiconset/icon_32x32.png) Easy Move+Resize
 
+> **This is a patched fork of [dmarcotte/easy-move-resize](https://github.com/dmarcotte/easy-move-resize) with two bug fixes:**
+>
+> - **Input freeze fix** — revoking Accessibility permission while the app is running would freeze all mouse and keyboard input, requiring a hard reboot to recover. Fixed by guarding `CGEventTapEnable` with `AXIsProcessTrusted()`.
+> - **InputLeap / Synergy / Barrier support** — `⌘+drag` did not work when using a mouse from another machine via InputLeap (or Synergy/Barrier). Fixed by switching to `kCGAnnotatedSessionEventTap` and tracking modifier key state independently via `kCGEventFlagsChanged`.
+>
+> Also includes `build.sh` to build without a full Xcode installation (Command Line Tools only).
+
 Adds easy `modifier key + mouse drag` move and resize to OSX
 
 ## Usage
