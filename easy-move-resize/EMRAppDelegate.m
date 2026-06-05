@@ -61,19 +61,32 @@ CGEventRef myCGEventCallback(CGEventTapProxy __unused proxy, CGEventType type, C
     EMRMoveResize* moveResize = [EMRMoveResize instance];
 
     if ((type == kCGEventTapDisabledByTimeout || type == kCGEventTapDisabledByUserInput)) {
+        // Only re-enable if we still have accessibility permission. If the user just revoked it,
+        // calling CGEventTapEnable on an untrusted process freezes all input until reboot.
+        if (!AXIsProcessTrusted()) {
+            return event;
+        }
         // need to re-enable our eventTap (We got disabled.  Usually happens on a slow resizing app)
         CGEventTapEnable([moveResize eventTap], true);
         return event;
     }
-    
-    CGEventFlags flags = CGEventGetFlags(event);
+
+    // Track modifier key state independently. InputLeap (and other synthetic event sources)
+    // inject mouse events without modifier flags set, so we can't rely solely on per-event flags.
+    if (type == kCGEventFlagsChanged) {
+        ourDelegate.trackedModifierFlags = CGEventGetFlags(event);
+        return event;
+    }
+
+    // Accept modifier state from either the event itself or our tracked state (covers InputLeap).
+    CGEventFlags flags = CGEventGetFlags(event) | ourDelegate.trackedModifierFlags;
     if ((flags & (keyModifierFlags)) != (keyModifierFlags)) {
         // didn't find our expected modifiers; this event isn't for us
         return event;
     }
 
     int ignoredKeysMask = (kCGEventFlagMaskShift | kCGEventFlagMaskCommand | kCGEventFlagMaskAlphaShift | kCGEventFlagMaskAlternate | kCGEventFlagMaskControl | kCGEventFlagMaskSecondaryFn) ^ keyModifierFlags;
-    
+
     if (flags & ignoredKeysMask) {
         // also ignore this event if we've got extra modifiers (i.e. holding down Cmd+Ctrl+Alt should not invoke our action)
         return event;
@@ -320,9 +333,12 @@ CGEventRef myCGEventCallback(CGEventTapProxy __unused proxy, CGEventType type, C
                     | CGEventMaskBit( kCGEventLeftMouseUp )
                     | CGEventMaskBit( kCGEventRightMouseUp )
                     | CGEventMaskBit( kCGEventOtherMouseUp )
+                    | CGEventMaskBit( kCGEventFlagsChanged )  // track modifier state for synthetic event sources (e.g. InputLeap)
     ;
 
-    CFMachPortRef eventTap = CGEventTapCreate(kCGHIDEventTap,
+    // kCGAnnotatedSessionEventTap captures events at the highest level, including synthetic
+    // events injected by tools like InputLeap which post after the HID tap point.
+    CFMachPortRef eventTap = CGEventTapCreate(kCGAnnotatedSessionEventTap,
                                               kCGHeadInsertEventTap,
                                               kCGEventTapOptionDefault,
                                               eventMask,

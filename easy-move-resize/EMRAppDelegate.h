@@ -31,5 +31,6 @@
 @property (nonatomic) BOOL sessionActive;
 @property float moveFilterInterval;
 @property float resizeFilterInterval;
+@property (nonatomic) CGEventFlags trackedModifierFlags;
 
 @end
